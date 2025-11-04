@@ -1,6 +1,7 @@
+'use client'
 import React from 'react'
 
-export default function Page() {
+export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6">
 
