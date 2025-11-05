@@ -16,14 +16,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
   }
 
-  // ✅ Verify HMAC signature to ensure request came from Shopify
+  // ✅ Verify HMAC signature (authenticity check)
   const params = Object.fromEntries(searchParams.entries());
   delete params['signature'];
   delete params['hmac'];
+
   const message = Object.keys(params)
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join('&');
+
   const generatedHmac = crypto
     .createHmac('sha256', SHOPIFY_API_SECRET)
     .update(message)
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 403 });
   }
 
-  // ✅ Exchange code for a permanent access token
+  // ✅ Exchange temporary code for permanent access token
   const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,9 +48,17 @@ export async function GET(request: Request) {
 
   const tokenData = await tokenResponse.json();
 
-  // ✅ Save tokenData.access_token to your DB (for now we’ll just log)
-  console.log('Access token:', tokenData.access_token);
+  if (!tokenData.access_token) {
+    return NextResponse.json({ error: 'Failed to retrieve access token', details: tokenData }, { status: 500 });
+  }
 
-  // ✅ Redirect back to your dashboard
-  return NextResponse.redirect(`https://banner-ecommerce-app.vercel.app/client/dashboard?shop=${shop}`);
+  // ✅ Log token for now (later: save to DB)
+  console.log(`🔐 Access token for ${shop}:`, tokenData.access_token);
+
+  // ✅ Redirect merchant back to your dashboard UI
+  const appName = 'banner-app'; // must match your Shopify app's handle in Partner Dashboard
+  const storeName = shop.replace('.myshopify.com', '');
+  const adminRedirectUrl = `https://admin.shopify.com/store/${storeName}/apps/${appName}`;
+
+  return NextResponse.redirect(adminRedirectUrl);
 }
